@@ -1,0 +1,34 @@
+---
+- hosts: jboss
+  become: yes
+  become_method: sudo
+  vars:
+    wildfly_zip_path: /opt/wildfly-20.0.1.Final.zip
+    wildfly_path: /opt/wildfly
+  tasks:
+    - name: install java se 8
+      dnf:
+        name: java-1.8.0-openjdk-headless
+        state: latest
+    - name: install zip
+      dnf:
+        name: zip
+        state: latest
+    - name: download wildfly zip
+      get_url:
+        url: https://download.jboss.org/wildfly/20.0.1.Final/wildfly-20.0.1.Final.zip
+        dest: '{{ wildfly_zip_path }}'
+    - name: remove wildfly path if exists
+      file:
+        state: absent
+        path: '{{ wildfly_path }}'
+    - name: create wildfly directory
+      file:
+        state: directory
+        path: '{{ wildfly_path }}'
+    - name: unzip wildfly
+      unarchive:
+        src: '{{ wildfly_zip_path }}'
+        dest: '{{ wildfly_path }}'
+        remote_src: true
+    

@@ -1,0 +1,64 @@
+---
+- hosts: ad_servers
+  become: yes
+  become_method: sudo
+  vars_prompt:
+    - name: ad_password
+      prompt: Enter ad password
+      private: true
+  tasks:
+    - name: install ad tools
+      dnf:
+        name:
+          - realmd 
+          - sssd 
+          - oddjob 
+          - oddjob-mkhomedir 
+          - adcli 
+          - samba-common-tools 
+          - krb5-workstation
+        state: latest
+    - name: realm discover
+      command: realm discover AD.LOCAL
+      register: realm_discover
+    - debug:
+        msg: "{{realm_discover}}"
+    - debug:
+        msg: "{{ad_password}}"
+    - name: join ad.local
+      shell: echo "{{ad_password}}" | realm join --user bind@AD.LOCAL AD.LOCAL
+      register: realm_join
+      ignore_errors: true
+    - debug:
+        msg: "{{realm_join}}"
+    - name: Enable password authentication in SSH server config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication yes'
+        state: present
+      notify:
+        - restart sshd
+    - name: add sudo ad group
+      blockinfile:
+        create: yes
+        path: /etc/sudoers.d/sudo-access-ad-users
+        content: |
+          %server-admins@ad.local     ALL=(ALL)   ALL
+    - name: update sssd block
+      blockinfile:
+        backup: yes
+        path: /etc/sssd/sssd.conf
+        content: |
+          [domain/ad.local]
+          simple_allow_groups = Server-Admins@AD.LOCAL
+          access_provider = simple
+  handlers:
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted
+    - name: restart sssd
+      service:
+        name: sssd
+        state: restarted
